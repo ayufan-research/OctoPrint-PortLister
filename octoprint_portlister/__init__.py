@@ -37,7 +37,13 @@ class PortListerPlugin(octoprint.plugin.StartupPlugin,
 
 			# is the new device in the port list? yes, tell the view model
 			self._logger.info("Checking if %s is in %s" % (port, repr(connection_options["ports"])))
-			if port in connection_options["ports"]:
+			for connection_port in connection_options["ports"]:
+				# try to resolve real path to support `/dev/serial/by-id/...`
+				if not os.path.realpath(port) == os.path.realpath(connection_port):
+					continue
+
+				self._logger.info("The %s was matched with %s, they do resolve to %s." % (port, connection_port, os.path.realpath(port)))
+
 				self._plugin_manager.send_plugin_message(self._plugin_name, port)
 
 				# if autoconnect and the new port matches, try to connect
@@ -46,9 +52,11 @@ class PortListerPlugin(octoprint.plugin.StartupPlugin,
 					self._logger.info("autoconnect_delay {0}".format(autoconnect_delay))
 					Timer(autoconnect_delay, self.do_auto_connect, [port]).start()
 				else:
-					self._logger.info("Not autoconnecting because autoconnect is turned off.")
-			else:
-				self._logger.warning("Won't autoconnect because %s isn't in %s" % (port, repr(connection_options["ports"])))
+					self._logger.info("Not autoconnecting to %s because autoconnect is turned off." % (port))
+
+				return
+
+			self._logger.warning("Won't autoconnect because %s isn't in %s" % (port, repr(connection_options["ports"])))
 		else:
 			self._logger.warning("Not auto connecting because printer is not closed nor in error state.")
 
